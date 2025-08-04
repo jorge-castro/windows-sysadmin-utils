@@ -1,7 +1,7 @@
 # Delete unloaded user profiles that haven't been used in at least the given number of days (defaults to zero)
 #
 # Usage:
-#	delete_users [-Days #] [-UserName <pattern>] [-DryRun] [-Quiet] [-Log]
+#	DeleteUsers [-Days #] [-UserName <pattern>] [-DryRun] [-Quiet] [-Log]
 
 Param(
     $Days = 0,
