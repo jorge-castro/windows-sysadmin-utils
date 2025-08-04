@@ -1,13 +1,14 @@
 # Delete unloaded user profiles that haven't been used in at least the given number of days (defaults to zero)
 #
 # Usage:
-#	delete_users [-Days #] [-UserName <pattern>] [-DryRun] [-Quiet]
+#	delete_users [-Days #] [-UserName <pattern>] [-DryRun] [-Quiet] [-Log]
 
 Param(
     $Days = 0,
     [string]$UserName = "*",
     [switch]$DryRun = $false,
-    [switch]$Quiet = $false
+    [switch]$Quiet = $false,
+	[switch]$Log = $false
 )
 
 Function TranslateSidToName {
@@ -41,14 +42,23 @@ Function GetDaysSinceDate {
     ((Get-Date) - $date).days
 }
 
-$Profiles = Get-CimInstance -Class Win32_UserProfile -Filter "Loaded = 'False' and Special = 'False'" -ErrorAction Stop
+if ($Log) {			
+	$Transcript = ".\logs\$(hostname)-$(Get-Date -F 'yyyyMMddHHmmss').log"
+	Start-Transcript | Out-Null
+}
 
 if ($Quiet) {
 	$ProgressPreference = "SilentlyContinue"
+} else {
+	Write-Host "Machine Name........: $(hostname)"
+	Write-Host "Current Date........: $((Get-Date).ToString())"
+	Write-Host "Run By..............: $($env:USERDOMAIN)\$($env:USERNAME)"
 }
 
 $ErrorActionPreference = "SilentlyContinue"
-	
+
+$Profiles = Get-CimInstance -Class Win32_UserProfile -Filter "Loaded = 'False' and Special = 'False'" -ErrorAction Stop
+
 foreach ($Profile in $Profiles) {
 	$Sid = $Profile.sid
 	$Name = TranslateSidToName $Sid
@@ -58,10 +68,11 @@ foreach ($Profile in $Profiles) {
 	$LocalProfileUnloadTimeHigh = Get-ItemPropertyValue -Path $profilelistsidkey -Name LocalProfileUnloadTimeHigh
 	$LastUseTime = ConvertToDate $LocalProfileUnloadTimeLow $LocalProfileUnloadTimeHigh
 	$ProfileAge = if ($LastUseTime) {GetDaysSinceDate $LastUseTime} else {GetDaysSinceDate $Profile.LastUseTime}
-		
+	
 	Write-Progress -Activity 'Removing Profiles' -Status "Checking $Name" -Id 0
 	 
 	if (($ProfileAge -ge $Days) -and ($Name -like $UserName)) {
+		
 		Write-Progress -Id 1 -ParentId 0 "Deleting $Name"
 		
 		if (-not $DryRun) {
@@ -69,7 +80,7 @@ foreach ($Profile in $Profiles) {
 		}
 		
 		if (-not $Quiet) {
-			Write-Output "Deleted profile for $Name at $LocalPath unused for $ProfileAge days"
+			Write-Host "Deleted profile for $Name at $LocalPath unused for $ProfileAge days"
 		}
 	}
 }
